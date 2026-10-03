@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from . import sona
@@ -79,6 +79,11 @@ def lab_now() -> datetime:
     """Current lab-local time, naive, comparable with session start/end (the server runs on UTC)."""
     tz = ZoneInfo(os.environ.get("LAB_TIMEZONE", "America/Los_Angeles"))
     return datetime.now(tz).replace(tzinfo=None)
+
+
+def no_show_after(s: StudySession) -> datetime:
+    """When a session can first be marked as a no-show: NO_SHOW_GRACE_MINUTES (default 5) after it starts."""
+    return s.start + timedelta(minutes=float(os.environ.get("NO_SHOW_GRACE_MINUTES", "5")))
 
 
 def mark_no_show(s: StudySession, kind: str) -> None:

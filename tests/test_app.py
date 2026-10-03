@@ -149,7 +149,7 @@ def test_ra_tags_that_are_ordinary_words():
     assert sona.find_ra_initials("Memory and Attention, room AND, extra-and") == []
 
 
-def test_no_show(app):
+def test_no_show(app, monkeypatch):
     from app import ingest, routes
     from app.models import StudySession
     with mock.patch.object(ingest, "send_email"):
@@ -159,8 +159,16 @@ def test_no_show(app):
     url = f"/api/events/{sid}/no-show"
 
     assert client.post(url, data={"type": "excused"}).status_code == 415
-    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 12, 0)):
-        assert client.post(url, json={"type": "excused"}).status_code == 409  # not started yet
+    # session starts 12:30; marking opens 5 minutes later
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 12, 34)):
+        assert client.post(url, json={"type": "excused"}).status_code == 409
+    monkeypatch.setenv("NO_SHOW_GRACE_MINUTES", "3")
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 12, 34)), \
+            mock.patch.object(ingest, "send_email"):
+        assert client.post(url, json={"type": "excused"}).status_code == 200
+    from app.models import db
+    StudySession.query.one().no_show = None
+    db.session.commit()
     assert client.post(url, json={"type": "maybe"}).status_code == 400
 
     # a failed send marks nothing

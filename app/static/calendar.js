@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
       status.textContent = 'Scheduled';
     }
     status.className = p.noShow ? 'no-show' : p.status;
-    noShowBox.hidden = p.status === 'cancelled' || !!p.noShow || current.start > new Date();
+    noShowBox.hidden = p.status === 'cancelled' || !!p.noShow || new Date() < new Date(p.noShowAfter);
   };
 
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {

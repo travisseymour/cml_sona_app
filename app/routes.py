@@ -10,7 +10,7 @@ from functools import wraps
 from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
                    session, url_for)
 
-from .ingest import NO_SHOW_TYPES, lab_now, mark_no_show, process_email
+from .ingest import NO_SHOW_TYPES, lab_now, mark_no_show, no_show_after, process_email
 from .models import InboundEmail, StudySession, db
 from .ras import color_for, lighten, load_ras, readable_text
 from .resend_client import WebhookVerificationError, get_received_email, verify_webhook
@@ -105,6 +105,7 @@ def events():
                 "raNames": [ras[i].name if i in ras else i for i in s.ra_list],
                 "status": s.status,
                 "noShow": s.no_show,
+                "noShowAfter": no_show_after(s).isoformat(),
             },
         })
     return jsonify(out)
@@ -122,8 +123,8 @@ def no_show(session_id: int):
     s = db.session.get(StudySession, session_id) or abort(404)
     if s.cancelled:
         return jsonify(error="This session was cancelled."), 409
-    if s.start > lab_now():
-        return jsonify(error="This session hasn't started yet."), 409
+    if lab_now() < no_show_after(s):
+        return jsonify(error="It's too early to mark this session as a no-show."), 409
     if s.no_show:
         return jsonify(error=f"Already marked as an {s.no_show} no-show."), 409
     try:
