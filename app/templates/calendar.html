@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CML Session Calendar</title>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
+</head>
+<body>
+  <header>
+    <h1>CML Session Calendar</h1>
+    <a class="logout" href="{{ url_for('main.logout') }}">Log out</a>
+  </header>
+
+  <section id="legend" aria-label="Research assistants">
+    {% for ra in legend %}
+      <label class="ra-chip" style="--ra: {{ ra.color }}">
+        <input type="checkbox" value="{{ ra.initials }}" checked>
+        <span class="swatch"></span>{{ ra.name }} <small>RA-{{ ra.initials }}</small>
+      </label>
+    {% endfor %}
+    <label class="ra-chip toggle">
+      <input type="checkbox" id="show-cancelled" checked> Show cancelled
+    </label>
+  </section>
+
+  <div id="calendar"></div>
+
+  <dialog id="details">
+    <h2 id="d-study"></h2>
+    <p id="d-status"></p>
+    <dl>
+      <dt>When</dt><dd id="d-when"></dd>
+      <dt>Location</dt><dd id="d-location"></dd>
+      <dt>RA</dt><dd id="d-ra"></dd>
+      <dt>Participant</dt><dd id="d-participant"></dd>
+    </dl>
+    <form method="dialog"><button>Close</button></form>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='calendar.js') }}"></script>
+</body>
+</html>

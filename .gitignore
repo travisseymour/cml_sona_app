@@ -1,0 +1,17 @@
+# The old PythonAnywhere app contains OAuth tokens/credentials -- never commit it.
+old_calendar_app/
+mysite.7z
+
+# Personal notes
+claude_note_after_first_pass.md
+
+# RA emails: set RA_CONFIG_JSON on Railway instead.
+ras.json
+
+__pycache__/
+*.pyc
+.venv/
+.env
+instance/
+*.db
+.pytest_cache/

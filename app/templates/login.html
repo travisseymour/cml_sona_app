@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CML Calendar – Log in</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='calendar.css') }}">
+</head>
+<body class="login">
+  <form method="post">
+    <h1>CML Session Calendar</h1>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <input type="password" name="password" placeholder="Lab password" autofocus required>
+    <button type="submit">Log in</button>
+  </form>
+</body>
+</html>

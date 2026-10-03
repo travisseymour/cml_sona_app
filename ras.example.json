@@ -1,0 +1,5 @@
+{
+  "TLS": {"name": "Taylor S.", "email": "tls@example.edu", "color": "#1f77b4"},
+  "MCP": {"name": "Morgan P.", "email": "mcp@example.edu", "color": "#d62728"},
+  "KLM": {"name": "Kim M.",    "email": "klm@example.edu", "color": "#2ca02c"}
+}
