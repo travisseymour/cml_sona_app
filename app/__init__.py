@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Flask
 
-from .models import db
+from .models import add_missing_columns, db
 
 
 def _database_url() -> str:
@@ -41,6 +41,8 @@ def create_app() -> Flask:
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        for col in add_missing_columns():
+            logging.getLogger(__name__).info("Added column %s", col)
 
     from .routes import bp
     app.register_blueprint(bp)

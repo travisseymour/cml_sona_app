@@ -9,6 +9,22 @@ document.addEventListener('DOMContentLoaded', () => {
     return ras.some((r) => !hiddenRAs.has(r));
   };
 
+  let current = null;  // the event shown in the details dialog
+  const noShowBox = document.getElementById('d-noshow');
+
+  const showStatus = (p) => {
+    const status = document.getElementById('d-status');
+    if (p.status === 'cancelled') {
+      status.textContent = 'CANCELLED';
+    } else if (p.noShow) {
+      status.textContent = `NO-SHOW (${p.noShow.toUpperCase()})`;
+    } else {
+      status.textContent = 'Scheduled';
+    }
+    status.className = p.noShow ? 'no-show' : p.status;
+    noShowBox.hidden = p.status === 'cancelled' || !!p.noShow || current.start > new Date();
+  };
+
   const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
     initialView: window.innerWidth < 700 ? 'listWeek' : 'timeGridWeek',
     headerToolbar: {
@@ -34,16 +50,16 @@ document.addEventListener('DOMContentLoaded', () => {
     eventDidMount: (info) => {
       const p = info.event.extendedProps;
       info.el.title = `${p.study}\n${p.location}\nRA: ${p.raNames.join(', ')}`
-        + (p.status === 'cancelled' ? '\nCANCELLED' : '');
+        + (p.status === 'cancelled' ? '\nCANCELLED' : '')
+        + (p.noShow ? `\nNO-SHOW (${p.noShow})` : '');
     },
     eventClick: (info) => {
       const ev = info.event;
       const p = ev.extendedProps;
       const fmt = { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' };
       document.getElementById('d-study').textContent = p.study;
-      const status = document.getElementById('d-status');
-      status.textContent = p.status === 'cancelled' ? 'CANCELLED' : 'Scheduled';
-      status.className = p.status;
+      current = ev;
+      showStatus(p);
       document.getElementById('d-when').textContent =
         ev.start.toLocaleString([], fmt) + (ev.end ? ' – ' + ev.end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '');
       document.getElementById('d-location').textContent = p.location || '—';
@@ -53,6 +69,40 @@ document.addEventListener('DOMContentLoaded', () => {
     },
   });
   calendar.render();
+
+  noShowBox.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!current) return;
+      const kind = btn.dataset.noshow;
+      const p = current.extendedProps;
+      const ok = confirm(
+        `Mark this session as an ${kind.toUpperCase()} no-show?\n\n`
+        + `${p.study}\n${document.getElementById('d-when').textContent}\n`
+        + `Participant: ${p.participant || '—'}\n\n`
+        + 'An email will be sent to the lab, and this cannot be undone here.');
+      if (!ok) return;
+      noShowBox.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      try {
+        const r = await fetch(`/api/events/${current.id}/no-show`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: kind }),
+        });
+        if (r.status === 401) { location.href = '/login'; return; }
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          alert(data.error || `Something went wrong (HTTP ${r.status}).`);
+          calendar.refetchEvents();
+          return;
+        }
+        current.setExtendedProp('noShow', data.noShow);
+        showStatus(current.extendedProps);
+        calendar.refetchEvents();
+      } finally {
+        noShowBox.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      }
+    });
+  });
 
   const refilter = () => calendar.refetchEvents();
 

@@ -10,7 +10,7 @@ from functools import wraps
 from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
                    session, url_for)
 
-from .ingest import process_email
+from .ingest import NO_SHOW_TYPES, lab_now, mark_no_show, process_email
 from .models import InboundEmail, StudySession, db
 from .ras import color_for, lighten, load_ras, readable_text
 from .resend_client import WebhookVerificationError, get_received_email, verify_webhook
@@ -95,7 +95,8 @@ def events():
             "backgroundColor": bg,
             "borderColor": color,
             "textColor": text,
-            "classNames": ["is-cancelled"] if s.cancelled else [],
+            "classNames": (["is-cancelled"] if s.cancelled else [])
+                          + (["is-no-show"] if s.no_show else []),
             "extendedProps": {
                 "study": s.study,
                 "location": s.location,
@@ -103,9 +104,35 @@ def events():
                 "ras": s.ra_list,
                 "raNames": [ras[i].name if i in ras else i for i in s.ra_list],
                 "status": s.status,
+                "noShow": s.no_show,
             },
         })
     return jsonify(out)
+
+
+@bp.route("/api/events/<int:session_id>/no-show", methods=["POST"])
+@login_required
+def no_show(session_id: int):
+    # Requiring a JSON body means a cross-site form can't trigger this.
+    if not request.is_json:
+        abort(415)
+    kind = (request.get_json(silent=True) or {}).get("type")
+    if kind not in NO_SHOW_TYPES:
+        return jsonify(error="type must be 'excused' or 'unexcused'"), 400
+    s = db.session.get(StudySession, session_id) or abort(404)
+    if s.cancelled:
+        return jsonify(error="This session was cancelled."), 409
+    if s.start > lab_now():
+        return jsonify(error="This session hasn't started yet."), 409
+    if s.no_show:
+        return jsonify(error=f"Already marked as an {s.no_show} no-show."), 409
+    try:
+        mark_no_show(s, kind)
+    except Exception:
+        db.session.rollback()
+        log.exception("no-show email for session %s failed", session_id)
+        return jsonify(error="The email could not be sent, so nothing was marked. Please try again."), 502
+    return jsonify(noShow=s.no_show)
 
 
 @bp.route("/webhooks/resend", methods=["POST"])

@@ -147,3 +147,61 @@ def test_ra_tags_that_are_ordinary_words():
             "in the location: SS2 443C (RA-AND). Please log in")
     assert sona.find_ra_initials(text) == ["AND"]
     assert sona.find_ra_initials("Memory and Attention, room AND, extra-and") == []
+
+
+def test_no_show(app):
+    from app import ingest, routes
+    from app.models import StudySession
+    with mock.patch.object(ingest, "send_email"):
+        ingest.process_email("n1", "sona", "Study Sign-Up", SIGNUP)
+    sid = StudySession.query.one().id
+    client = app.test_client()
+    url = f"/api/events/{sid}/no-show"
+
+    assert client.post(url, data={"type": "excused"}).status_code == 415
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 12, 0)):
+        assert client.post(url, json={"type": "excused"}).status_code == 409  # not started yet
+    assert client.post(url, json={"type": "maybe"}).status_code == 400
+
+    # a failed send marks nothing
+    with mock.patch.object(ingest, "send_email", side_effect=RuntimeError("down")):
+        assert client.post(url, json={"type": "unexcused"}).status_code == 502
+    assert StudySession.query.one().no_show is None
+
+    with mock.patch.object(ingest, "send_email") as send:
+        assert client.post(url, json={"type": "unexcused"}).get_json() == {"noShow": "unexcused"}
+        to, subject, body = send.call_args.args
+        assert to == "cogmodlab@gmail.com" and subject == "Participant No-Show Marked"
+        assert body.startswith("A previous experimental session:")
+        assert "Jamie Testperson" in body and "Taylor (RA-TLS)" in body
+        assert "has been marked as an UNEXCUSED No-Show." in body
+        # can't be marked twice
+        assert client.post(url, json={"type": "excused"}).status_code == 409
+        assert send.call_count == 1
+
+    events = client.get("/api/events?start=2018-06-01T00:00:00-07:00&end=2018-06-30").get_json()
+    assert events[0]["classNames"] == ["is-no-show"]
+    assert events[0]["extendedProps"]["noShow"] == "unexcused"
+
+
+def test_missing_columns_added_to_old_table(tmp_path, monkeypatch):
+    import sqlite3
+    tmp = tmp_path / "old"
+    tmp.mkdir()
+    con = sqlite3.connect(tmp / "cml.db")
+    con.execute("CREATE TABLE study_sessions (id INTEGER PRIMARY KEY, study VARCHAR(300) NOT NULL, "
+                "participant VARCHAR(300) NOT NULL, location VARCHAR(300) NOT NULL, start DATETIME NOT NULL, "
+                "\"end\" DATETIME, ra_initials VARCHAR(100) NOT NULL, status VARCHAR(20) NOT NULL, "
+                "created_at DATETIME NOT NULL, cancelled_at DATETIME)")
+    con.commit()
+    con.close()
+    monkeypatch.setenv("DATA_DIR", str(tmp))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("RA_CONFIG_JSON", json.dumps(RAS))
+    from app import create_app
+    from app.models import add_missing_columns
+    app = create_app()
+    cols = [r[1] for r in sqlite3.connect(tmp / "cml.db").execute("PRAGMA table_info(study_sessions)")]
+    assert "no_show" in cols and "no_show_at" in cols
+    with app.app_context():
+        assert add_missing_columns() == []

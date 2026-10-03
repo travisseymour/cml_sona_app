@@ -69,6 +69,20 @@ header h1 { font-size: 1.3rem; margin: 0; }
 }
 .fc .is-cancelled { opacity: 0.9; }
 
+/* No-shows: red border and diagonal stripes over the RA color. */
+.fc .is-no-show {
+  border: 3px solid var(--cancel) !important;
+  background-image: repeating-linear-gradient(
+    -45deg, rgba(255, 255, 255, 0.45) 0 6px, transparent 6px 14px);
+}
+.fc .fc-list-event.is-no-show { border: none !important; }
+.fc .fc-list-event.is-no-show .fc-list-event-dot { border-color: var(--cancel); }
+.fc .fc-list-event.is-no-show .fc-list-event-title::after {
+  content: " — NO-SHOW";
+  color: var(--cancel);
+  font-weight: 700;
+}
+
 dialog {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -79,7 +93,10 @@ dialog h2 { margin: 0 0 4px; font-size: 1.1rem; }
 dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
 dialog dt { color: var(--muted); }
 dialog dd { margin: 0; }
-#d-status.cancelled { color: var(--cancel); font-weight: 700; }
+#d-status.cancelled, #d-status.no-show { color: var(--cancel); font-weight: 700; }
+#d-noshow { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+#d-noshow[hidden] { display: none; }
+#d-noshow button { font: inherit; padding: 6px 10px; }
 
 body.login { display: grid; place-items: center; min-height: 100vh; }
 body.login form { display: grid; gap: 10px; width: min(320px, 100%); }

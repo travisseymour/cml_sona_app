@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from . import sona
 from .models import InboundEmail, StudySession, db, utcnow
@@ -68,6 +70,41 @@ def apply_notice(n: sona.SonaNotice) -> tuple[StudySession, bool]:
     s.status = "cancelled"
     s.cancelled_at = utcnow()
     return s, True
+
+
+NO_SHOW_TYPES = ("excused", "unexcused")
+
+
+def lab_now() -> datetime:
+    """Current lab-local time, naive, comparable with session start/end (the server runs on UTC)."""
+    tz = ZoneInfo(os.environ.get("LAB_TIMEZONE", "America/Los_Angeles"))
+    return datetime.now(tz).replace(tzinfo=None)
+
+
+def mark_no_show(s: StudySession, kind: str) -> None:
+    """Email the grad student about a no-show, then record it.
+
+    The mark is only saved once the email has gone out, so a failed send can be retried.
+    """
+    if kind not in NO_SHOW_TYPES:
+        raise ValueError(f"unknown no-show type {kind!r}")
+    ras = load_ras()
+    ra_names = ", ".join(f"{ras[i].name} (RA-{i})" if i in ras else f"RA-{i}" for i in s.ra_list)
+    body = (
+        "A previous experimental session:\n\n"
+        f"Study:       {s.study}\n"
+        f"When:        {fmt_when(s)}\n"
+        f"Location:    {s.location}\n"
+        f"RA:          {ra_names or '(none)'}\n"
+        f"Participant: {s.participant}\n\n"
+        f"has been marked as an {kind.upper()} No-Show."
+        f"{_calendar_link()}\n"
+    )
+    to = os.environ.get("NO_SHOW_EMAIL", "cogmodlab@gmail.com")
+    send_email(to, "Participant No-Show Marked", body, reply_to=_admin())
+    s.no_show = kind
+    s.no_show_at = utcnow()
+    db.session.commit()
 
 
 def notify(s: StudySession, kind: str, original_text: str) -> list[str]:
