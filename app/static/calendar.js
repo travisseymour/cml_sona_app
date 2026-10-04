@@ -117,6 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
     refilter();
   });
 
+  // Header clock, updated in the browser at the top of each minute.
+  const clock = document.getElementById('clock');
+  const tick = () => {
+    const now = new Date();
+    clock.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    setTimeout(tick, 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50);
+  };
+  tick();
+
   // Pick up new sign-ups without a manual reload.
   setInterval(() => calendar.refetchEvents(), 5 * 60 * 1000);
 });

@@ -183,6 +183,7 @@ def test_no_show(app, monkeypatch):
         assert body.startswith("A previous experimental session:")
         assert "Jamie Testperson" in body and "Taylor (RA-TLS)" in body
         assert "has been marked as an UNEXCUSED No-Show." in body
+        assert '<b style="color:#c62828">UNEXCUSED</b>' in send.call_args.kwargs["html"]
         # can't be marked twice
         assert client.post(url, json={"type": "excused"}).status_code == 409
         assert send.call_count == 1

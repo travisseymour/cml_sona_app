@@ -15,14 +15,38 @@ Sona ──> lab Gmail ──(filter: auto-forward)──> cml@mail.example.org
                                                             forward to ADMIN_EMAIL
                          ▼
               Calendar at /  (FullCalendar; month, week, day and list views)
+                         │  RA clicks "Mark As No-Show"
+                         ▼
+              POST /api/events/<id>/no-show ──> email NO_SHOW_EMAIL
 ```
 
 ## How it works
 
 * **RA tags.** Any `RA-XXX` in the email body is matched against `ras.json`. Put the tag in the Sona timeslot's *location* field, for example `SS2 443C (RA-TLS)`, and it shows up in every notice. A notice with several tags notifies all of them. The calendar colors the session by the first tag.
 * **Cancellations** mark the matching sign-up (same study, participant and start time) as cancelled. On the calendar it then appears in a lighter version of the RA's color, struck through with a thick red line. If the sign-up came in before this app existed, a cancelled entry is created anyway.
-* **Problems go to ADMIN_EMAIL.** This covers missing tags, initials that aren't in `ras.json`, failed sends, and any email that isn't a Sona notice.
+* **Problems go to `ADMIN_EMAIL`.** This covers missing tags, initials that aren't in `ras.json`, failed sends, and any email that isn't a Sona notice.
 * Duplicate webhooks and emails forwarded twice are ignored.
+* **No-shows.** Clicking a session opens its details, which include *Mark As No-Show (Excused)* and *Mark As No-Show (Unexcused)* buttons. The buttons appear `NO_SHOW_GRACE_MINUTES` (default 5) after the session starts, and never on cancelled sessions. After a confirmation, the app emails `NO_SHOW_EMAIL` with the session details. The mark is saved only if that email is sent. Marked sessions get a red border with diagonal stripes and can't be marked again.
+
+## Variables
+
+Set these as Railway service variables. For local development, put them in `.env` (see `.env.example`).
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `RA_CONFIG_JSON` | yes (on Railway) | RA roster; see below. |
+| `DATABASE_URL` | yes (on Railway) | Postgres connection, as a reference to the Railway Postgres service. Without it, SQLite in `DATA_DIR` is used. |
+| `RESEND_API_KEY` | yes | Full-access Resend key: sends mail and reads received mail. Without it, outgoing mail is only logged. |
+| `RESEND_WEBHOOK_SECRET` | yes (on Railway) | Signing secret of the Resend webhook. |
+| `MAIL_FROM` | no | Sender, default `CML Scheduler <cml@mail.example.org>`. |
+| `ADMIN_EMAIL` | yes | Gets problems and non-Sona mail. It is also the reply-to address on RA and no-show emails. |
+| `APP_URL` | no | Public URL, used for the calendar link in emails. |
+| `CALENDAR_PASSWORD` | yes (on Railway) | Shared password for the calendar. Without it, there is no login. |
+| `SECRET_KEY` | yes | Signs login cookies. Use a long random string. |
+| `NO_SHOW_EMAIL` | no | Gets no-show reports. Default `cogmodlab@gmail.com`. |
+| `NO_SHOW_GRACE_MINUTES` | no | Minutes after a session's start before it can be marked a no-show. Default `5`. Enter a plain number with no quotes. |
+| `LAB_TIMEZONE` | no | Time zone of the Sona times. Default `America/Los_Angeles`. Needed because the server clock is UTC. |
+| `DATA_DIR` | no | SQLite location when `DATABASE_URL` isn't set (for example a Railway volume at `/data`). |
 
 ## RA list: the `RA_CONFIG_JSON` variable
 
@@ -47,7 +71,7 @@ For local development, put the same JSON in a `ras.json` file in the project roo
 ## One-time setup
 
 1. **Resend: receiving.** In Resend, open Domains → `mail.example.org` and enable *Receiving*. Then add the MX record Resend shows to the DNS for `mail.example.org`.
-2. **Railway.** Create a new service from this GitHub repo. Add a **Postgres** database to the project and reference its `DATABASE_URL` in the service. Alternatively, attach a volume at `/data` and set `DATA_DIR=/data` to use SQLite. Without one of these, sessions are lost on every deploy. Then set the variables listed in `.env.example`: `RA_CONFIG_JSON`, `RESEND_API_KEY`, `MAIL_FROM`, `ADMIN_EMAIL`, `APP_URL`, `CALENDAR_PASSWORD` and `SECRET_KEY`.
+2. **Railway.** Create a new service from this GitHub repo. Add a **Postgres** database to the project and reference its `DATABASE_URL` in the service. Alternatively, attach a volume at `/data` and set `DATA_DIR=/data` to use SQLite. Without one of these, sessions are lost on every deploy. Then set the variables listed under [Variables](#variables).
 3. **Custom domain (optional).** In Railway, go to Settings → Networking and add `cml.example.org`. Then add the CNAME record it gives you.
 4. **Resend: webhook.** Under Webhooks, add `https://<your-app>/webhooks/resend` for the event `email.received`. Copy its signing secret into the Railway variable `RESEND_WEBHOOK_SECRET`. In production, webhooks are refused until this variable is set.
 5. **Gmail (lab account).**

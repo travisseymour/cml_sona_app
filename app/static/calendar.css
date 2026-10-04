@@ -26,6 +26,7 @@ header {
   padding: 16px 0 8px;
 }
 header h1 { font-size: 1.3rem; margin: 0; }
+#clock { margin-left: 0.4em; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .logout { color: var(--muted); }
 
 #legend {

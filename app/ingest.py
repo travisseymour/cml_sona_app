@@ -1,6 +1,7 @@
 """Turn an incoming email into calendar records and RA notifications."""
 from __future__ import annotations
 
+import html
 import logging
 import os
 from datetime import datetime, timedelta
@@ -95,18 +96,27 @@ def mark_no_show(s: StudySession, kind: str) -> None:
         raise ValueError(f"unknown no-show type {kind!r}")
     ras = load_ras()
     ra_names = ", ".join(f"{ras[i].name} (RA-{i})" if i in ras else f"RA-{i}" for i in s.ra_list)
+    rows = [("Study", s.study), ("When", fmt_when(s)), ("Location", s.location),
+            ("RA", ra_names or "(none)"), ("Participant", s.participant)]
     body = (
         "A previous experimental session:\n\n"
-        f"Study:       {s.study}\n"
-        f"When:        {fmt_when(s)}\n"
-        f"Location:    {s.location}\n"
-        f"RA:          {ra_names or '(none)'}\n"
-        f"Participant: {s.participant}\n\n"
-        f"has been marked as an {kind.upper()} No-Show."
-        f"{_calendar_link()}\n"
+        + "".join(f"{k + ':':<13}{v}\n" for k, v in rows)
+        + f"\nhas been marked as an {kind.upper()} No-Show."
+        + f"{_calendar_link()}\n"
+    )
+    color = "#c62828" if kind == "unexcused" else "#2e7d32"
+    url = os.environ.get("APP_URL", "").rstrip("/")
+    html_body = (
+        "<p>A previous experimental session:</p>"
+        '<table style="border-collapse:collapse">'
+        + "".join(f'<tr><td style="padding:2px 14px 2px 0;color:#555">{k}</td>'
+                  f"<td>{html.escape(v)}</td></tr>" for k, v in rows)
+        + "</table>"
+        f'<p>has been marked as an <b style="color:{color}">{kind.upper()}</b> No-Show.</p>'
+        + (f'<p>Lab calendar: <a href="{html.escape(url)}/">{html.escape(url)}/</a></p>' if url else "")
     )
     to = os.environ.get("NO_SHOW_EMAIL", "cogmodlab@gmail.com")
-    send_email(to, "Participant No-Show Marked", body, reply_to=_admin())
+    send_email(to, "Participant No-Show Marked", body, html=html_body, reply_to=_admin())
     s.no_show = kind
     s.no_show_at = utcnow()
     db.session.commit()
