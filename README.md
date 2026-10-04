@@ -79,6 +79,8 @@ For local development, put the same JSON in a `ras.json` file in the project roo
    2. Create a filter: *From* `sona-systems.net`, *Subject* `Study Sign-Up OR Study Cancellation`. Choose *Forward it to* `cml@mail.example.org`.
 6. Send yourself a test sign-up (or forward an old one) and watch the Railway logs.
 
+To see which commit is live, open `/healthz`. It returns `ok <commit>` for deploys made from GitHub.
+
 ## Local development
 
 ```bash
