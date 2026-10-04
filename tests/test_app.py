@@ -150,6 +150,7 @@ def test_ra_tags_that_are_ordinary_words():
 
 
 def test_no_show(app, monkeypatch):
+    monkeypatch.setenv("NO_SHOW_EMAIL", "grad@example.edu")
     from app import ingest, routes
     from app.models import StudySession
     with mock.patch.object(ingest, "send_email"):
@@ -179,7 +180,7 @@ def test_no_show(app, monkeypatch):
     with mock.patch.object(ingest, "send_email") as send:
         assert client.post(url, json={"type": "unexcused"}).get_json() == {"noShow": "unexcused"}
         to, subject, body = send.call_args.args
-        assert to == "cogmodlab@gmail.com" and subject == "Participant No-Show Marked"
+        assert to == "grad@example.edu" and subject == "Participant No-Show Marked"
         assert body.startswith("A previous experimental session:")
         assert "Jamie Testperson" in body and "Taylor (RA-TLS)" in body
         assert "has been marked as an UNEXCUSED No-Show." in body

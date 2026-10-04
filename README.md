@@ -43,7 +43,7 @@ Set these as Railway service variables. For local development, put them in `.env
 | `APP_URL` | no | Public URL, used for the calendar link in emails. |
 | `CALENDAR_PASSWORD` | yes (on Railway) | Shared password for the calendar. Without it, there is no login. |
 | `SECRET_KEY` | yes | Signs login cookies. Use a long random string. |
-| `NO_SHOW_EMAIL` | no | Gets no-show reports. Default `cogmodlab@gmail.com`. |
+| `NO_SHOW_EMAIL` | yes | Gets no-show reports. If it isn't set, they go to `ADMIN_EMAIL`. |
 | `NO_SHOW_GRACE_MINUTES` | no | Minutes after a session's start before it can be marked a no-show. Default `5`. Enter a plain number with no quotes. |
 | `LAB_TIMEZONE` | no | Time zone of the Sona times. Default `America/Los_Angeles`. Needed because the server clock is UTC. |
 | `DATA_DIR` | no | SQLite location when `DATABASE_URL` isn't set (for example a Railway volume at `/data`). |

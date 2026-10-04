@@ -115,7 +115,9 @@ def mark_no_show(s: StudySession, kind: str) -> None:
         f'<p>has been marked as an <b style="color:{color}">{kind.upper()}</b> No-Show.</p>'
         + (f'<p>Lab calendar: <a href="{html.escape(url)}/">{html.escape(url)}/</a></p>' if url else "")
     )
-    to = os.environ.get("NO_SHOW_EMAIL", "cogmodlab@gmail.com")
+    to = os.environ.get("NO_SHOW_EMAIL") or _admin()
+    if not to:
+        raise RuntimeError("Neither NO_SHOW_EMAIL nor ADMIN_EMAIL is set")
     send_email(to, "Participant No-Show Marked", body, html=html_body, reply_to=_admin())
     s.no_show = kind
     s.no_show_at = utcnow()
