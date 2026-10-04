@@ -172,4 +172,6 @@ def resend_webhook():
 
 @bp.route("/healthz")
 def healthz():
-    return "ok"
+    # Railway sets the commit SHA for GitHub deploys; handy for checking what's live.
+    sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")[:7]
+    return f"ok {sha}".strip()
