@@ -27,7 +27,7 @@ def send_email(to: str | list[str], subject: str, text: str, html: str | None = 
                reply_to: str | None = None) -> None:
     to = [to] if isinstance(to, str) else to
     payload = {
-        "from": os.environ.get("MAIL_FROM", "CML Scheduler <cml@mail.example.org>"),
+        "from": os.environ.get("MAIL_FROM", ""),
         "to": to,
         "subject": subject,
         "text": text,
@@ -40,6 +40,8 @@ def send_email(to: str | list[str], subject: str, text: str, html: str | None = 
     if not os.environ.get("RESEND_API_KEY"):
         log.warning("RESEND_API_KEY not set; would have sent to %s: %s\n%s", to, subject, text)
         return
+    if not payload["from"]:
+        raise RuntimeError("MAIL_FROM is not set (e.g. 'CML Scheduler <cml@mail.example.org>')")
     r = requests.post(f"{API}/emails", json=payload, headers=_headers(), timeout=20)
     if r.status_code >= 300:
         log.error("Resend send failed (%s): %s", r.status_code, r.text)

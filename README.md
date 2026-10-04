@@ -38,7 +38,7 @@ Set these as Railway service variables. For local development, put them in `.env
 | `DATABASE_URL` | yes (on Railway) | Postgres connection, as a reference to the Railway Postgres service. Without it, SQLite in `DATA_DIR` is used. |
 | `RESEND_API_KEY` | yes | Full-access Resend key: sends mail and reads received mail. Without it, outgoing mail is only logged. |
 | `RESEND_WEBHOOK_SECRET` | yes (on Railway) | Signing secret of the Resend webhook. |
-| `MAIL_FROM` | no | Sender, default `CML Scheduler <cml@mail.example.org>`. |
+| `MAIL_FROM` | yes | Sender, an address on your Resend domain, e.g. `CML Scheduler <cml@mail.example.org>`. |
 | `ADMIN_EMAIL` | yes | Gets problems and non-Sona mail. It is also the reply-to address on RA and no-show emails. |
 | `APP_URL` | no | Public URL, used for the calendar link in emails. |
 | `CALENDAR_PASSWORD` | yes (on Railway) | Shared password for the calendar. Without it, there is no login. |
@@ -70,9 +70,9 @@ For local development, put the same JSON in a `ras.json` file in the project roo
 
 ## One-time setup
 
-1. **Resend: receiving.** In Resend, open Domains → `mail.example.org` and enable *Receiving*. Then add the MX record Resend shows to the DNS for `mail.example.org`.
+1. **Resend: receiving.** In Resend, open Domains → your sending domain (below, `mail.example.org`) and enable *Receiving*. Then add the MX record Resend shows to that domain's DNS. Use a subdomain that has no other mail, so its MX record affects nothing else.
 2. **Railway.** Create a new service from this GitHub repo. Add a **Postgres** database to the project and reference its `DATABASE_URL` in the service. Alternatively, attach a volume at `/data` and set `DATA_DIR=/data` to use SQLite. Without one of these, sessions are lost on every deploy. Then set the variables listed under [Variables](#variables).
-3. **Custom domain (optional).** In Railway, go to Settings → Networking and add `cml.example.org`. Then add the CNAME record it gives you.
+3. **Custom domain (optional).** In Railway, go to Settings → Networking and add your domain (e.g. `cml.example.org`). Then add the CNAME record it gives you.
 4. **Resend: webhook.** Under Webhooks, add `https://<your-app>/webhooks/resend` for the event `email.received`. Copy its signing secret into the Railway variable `RESEND_WEBHOOK_SECRET`. In production, webhooks are refused until this variable is set.
 5. **Gmail (lab account).**
    1. Go to Settings → Forwarding and POP/IMAP → *Add a forwarding address* and enter `cml@mail.example.org`. Gmail sends a confirmation email to that address, and the app forwards it to `ADMIN_EMAIL`. Click the link in it, or enter its code.
