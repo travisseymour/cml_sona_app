@@ -213,3 +213,8 @@ def test_missing_columns_added_to_old_table(tmp_path, monkeypatch):
     assert "no_show" in cols and "no_show_at" in cols
     with app.app_context():
         assert add_missing_columns() == []
+
+
+def test_static_urls_are_versioned(app):
+    html = app.test_client().get("/").get_data(as_text=True)
+    assert "/static/calendar.js?v=" in html and "/static/calendar.css?v=" in html

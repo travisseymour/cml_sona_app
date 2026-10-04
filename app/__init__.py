@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -43,6 +44,20 @@ def create_app() -> Flask:
         db.create_all()
         for col in add_missing_columns():
             logging.getLogger(__name__).info("Added column %s", col)
+
+    # Browsers cache static files for hours; put a content hash in their URLs
+    # so a deploy that changes calendar.js is picked up immediately.
+    versions: dict[str, str] = {}
+
+    @app.url_defaults
+    def static_version(endpoint, values):
+        if endpoint == "static" and "filename" in values:
+            name = values["filename"]
+            if name not in versions:
+                path = Path(app.static_folder) / name
+                versions[name] = hashlib.sha256(path.read_bytes()).hexdigest()[:10] if path.is_file() else ""
+            if versions[name]:
+                values["v"] = versions[name]
 
     from .routes import bp
     app.register_blueprint(bp)
