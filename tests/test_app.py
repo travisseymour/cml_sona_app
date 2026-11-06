@@ -220,3 +220,41 @@ def test_missing_columns_added_to_old_table(tmp_path, monkeypatch):
 def test_static_urls_are_versioned(app):
     html = app.test_client().get("/").get_data(as_text=True)
     assert "/static/calendar.js?v=" in html and "/static/calendar.css?v=" in html
+
+
+def test_login_lockout_after_repeated_failures(app, monkeypatch):
+    from app import routes
+    monkeypatch.setenv("CALENDAR_PASSWORD", "right-password")
+    monkeypatch.setattr(routes, "_login_failures", {})
+    client = app.test_client()
+    for _ in range(routes.MAX_LOGIN_FAILURES):
+        assert "Wrong password" in client.post("/login", data={"password": "nope"}).get_data(as_text=True)
+    # locked out now, even with the right password
+    r = client.post("/login", data={"password": "right-password"})
+    assert r.status_code == 200 and "Too many failed attempts" in r.get_data(as_text=True)
+
+
+def test_login_lockout_uses_proxy_ip_only_when_trusted(app, monkeypatch):
+    from app import routes
+    monkeypatch.setenv("CALENDAR_PASSWORD", "right-password")
+    monkeypatch.setenv("CALENDAR_TRUST_PROXY", "1")
+    monkeypatch.setattr(routes, "_login_failures", {})
+    client = app.test_client()
+    for _ in range(routes.MAX_LOGIN_FAILURES):
+        client.post("/login", data={"password": "nope"}, headers={"X-Real-IP": "203.0.113.9"})
+    # a different visitor is not locked out
+    r = client.post("/login", data={"password": "right-password"}, headers={"X-Real-IP": "198.51.100.7"})
+    assert r.status_code == 302
+
+
+def test_login_redirect_stays_on_site(app, monkeypatch):
+    from app import routes
+    monkeypatch.setenv("CALENDAR_PASSWORD", "right-password")
+    monkeypatch.setattr(routes, "_login_failures", {})
+    client = app.test_client()
+    for nxt, expected in [("/calendar", "/calendar"), ("//evil.com", "/"), ("/\\evil.com", "/"),
+                          ("/\t/evil.com", "/"), ("https://evil.com", "/")]:
+        r = client.post("/login", query_string={"next": nxt}, data={"password": "right-password"})
+        assert r.headers["Location"] == expected, nxt
+    # a non-ASCII guess is just wrong, not a server error
+    assert client.post("/login", data={"password": "pässwörd"}).status_code == 200

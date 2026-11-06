@@ -4,6 +4,8 @@ import hmac
 import json
 import logging
 import os
+import threading
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -31,17 +33,64 @@ def login_required(view):
     return wrapper
 
 
+MAX_LOGIN_FAILURES = 5
+LOCKOUT_SECONDS = 15 * 60
+
+# ip -> timestamps of recent failed logins (per process; the app runs one worker)
+_login_failures: dict[str, list[float]] = {}
+_login_failures_lock = threading.Lock()
+
+
+def client_ip() -> str:
+    """The visitor's IP. Behind a trusted reverse proxy, read it from X-Real-IP."""
+    if os.environ.get("CALENDAR_TRUST_PROXY") == "1":
+        return request.headers.get("X-Real-IP", request.remote_addr or "")
+    return request.remote_addr or ""
+
+
+def _recent_failures(ip: str, now: float) -> list[float]:
+    recent = [t for t in _login_failures.get(ip, []) if now - t < LOCKOUT_SECONDS]
+    if recent:
+        _login_failures[ip] = recent
+    else:
+        _login_failures.pop(ip, None)
+    return recent
+
+
+def safe_next(nxt: str) -> str:
+    """Only redirect within this site. Browsers read "\\" as "/" and drop tabs and
+    newlines, so "/\\evil.com" or "/\\t/evil.com" would otherwise leave the site."""
+    cleaned = "".join(c for c in nxt if c.isprintable() and not c.isspace()).replace("\\", "/")
+    return cleaned if cleaned.startswith("/") and not cleaned.startswith("//") else "/"
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     error = None
     if request.method == "POST":
+        ip = client_ip()
+        now = time.time()
+        with _login_failures_lock:
+            locked = len(_recent_failures(ip, now)) >= MAX_LOGIN_FAILURES
         expected = os.environ.get("CALENDAR_PASSWORD", "")
-        if hmac.compare_digest(request.form.get("password", ""), expected):
+        if locked:
+            log.warning("Login refused for %s: too many failed attempts", ip)
+            error = "Too many failed attempts. Try again in 15 minutes."
+        elif hmac.compare_digest(request.form.get("password", "").encode(), expected.encode()):
+            with _login_failures_lock:
+                _login_failures.pop(ip, None)
+            session.clear()
             session.permanent = True
             session["ok"] = True
-            nxt = request.args.get("next", "/")
-            return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/")
-        error = "Wrong password."
+            return redirect(safe_next(request.args.get("next", "/")))
+        else:
+            with _login_failures_lock:
+                _login_failures.setdefault(ip, []).append(now)
+                # Keep memory bounded if many IPs are guessing
+                if len(_login_failures) > 10_000:
+                    for other in list(_login_failures):
+                        _recent_failures(other, now)
+            error = "Wrong password."
     return render_template("login.html", error=error)
 
 
