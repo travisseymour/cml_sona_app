@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     eventDidMount: (info) => {
       const p = info.event.extendedProps;
+      info.el.dataset.start = info.event.start.toISOString();
       info.el.title = `${p.study}\n${p.location}\nRA: ${p.raNames.join(', ')}`
         + (p.status === 'cancelled' ? '\nCANCELLED' : '')
         + (p.noShow ? `\nNO-SHOW (${p.noShow})` : '');
@@ -71,6 +72,28 @@ document.addEventListener('DOMContentLoaded', () => {
     },
   });
   calendar.render();
+
+  // Month view has no built-in "now" line, so draw one in today's cell between
+  // the sessions that have started and those still to come.
+  const markNow = () => {
+    document.querySelectorAll('.now-above, .now-below, .now-empty')
+      .forEach((el) => el.classList.remove('now-above', 'now-below', 'now-empty'));
+    if (calendar.view.type !== 'dayGridMonth') return;
+    const box = document.querySelector('.fc-dayGridMonth-view .fc-day-today .fc-daygrid-day-events');
+    if (!box) return;
+    const shown = [...box.querySelectorAll(':scope > .fc-daygrid-event-harness')]
+      .filter((h) => h.style.visibility !== 'hidden' && h.querySelector('[data-start]'));
+    if (shown.length === 0) { box.classList.add('now-empty'); return; }
+    const now = new Date();
+    const next = shown.find((h) => new Date(h.querySelector('[data-start]').dataset.start) > now);
+    if (next) next.classList.add('now-above');
+    else shown[shown.length - 1].classList.add('now-below');
+  };
+  const markNowSoon = () => setTimeout(markNow, 0);
+  calendar.setOption('eventsSet', markNowSoon);
+  calendar.setOption('datesSet', markNowSoon);
+  calendar.setOption('windowResize', markNowSoon);
+  markNowSoon();
 
   noShowBox.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -124,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tick = () => {
     const now = new Date();
     clock.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    markNow();
     setTimeout(tick, 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50);
   };
   tick();
