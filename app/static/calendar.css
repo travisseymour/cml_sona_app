@@ -59,7 +59,8 @@ header h1 { font-size: 1.3rem; margin: 0; }
 .fc .fc-event-main { white-space: normal; }
 .fc .fc-timegrid-slot { height: 2.4em; }
 
-/* Cancelled sessions: washed-out RA color with a thick red strike-through. */
+/* Cancelled sessions: washed-out RA color with a thick red strike-through.
+   Finished sessions (.is-past) get the same washed-out color, without the strike-through. */
 .fc .is-cancelled .fc-event-title,
 .fc .is-cancelled .fc-event-time,
 .fc .is-cancelled .fc-list-event-title,
@@ -68,7 +69,7 @@ header h1 { font-size: 1.3rem; margin: 0; }
   text-decoration-color: var(--cancel);
   text-decoration-thickness: 3px;
 }
-.fc .is-cancelled { opacity: 0.9; }
+.fc .is-cancelled, .fc .is-past { opacity: 0.9; }
 
 /* No-shows: red border and diagonal stripes over the RA color. */
 .fc .is-no-show {

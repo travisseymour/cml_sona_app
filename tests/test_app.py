@@ -172,6 +172,12 @@ def test_no_show(app, monkeypatch):
     db.session.commit()
     assert client.post(url, json={"type": "maybe"}).status_code == 400
 
+    # marking closes 48 hours after the session ends (13:30)
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 10, 13, 31)):
+        assert client.post(url, json={"type": "unexcused"}).status_code == 409
+    soon = mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 10, 13, 29))
+    soon.start()
+
     # a failed send marks nothing
     with mock.patch.object(ingest, "send_email", side_effect=RuntimeError("down")):
         assert client.post(url, json={"type": "unexcused"}).status_code == 502
@@ -189,9 +195,36 @@ def test_no_show(app, monkeypatch):
         assert client.post(url, json={"type": "excused"}).status_code == 409
         assert send.call_count == 1
 
+    soon.stop()
     events = client.get("/api/events?start=2018-06-01T00:00:00-07:00&end=2018-06-30").get_json()
     assert events[0]["classNames"] == ["is-no-show"]
     assert events[0]["extendedProps"]["noShow"] == "unexcused"
+    assert events[0]["extendedProps"]["noShowUntil"] == "2018-06-10T13:30:00"
+
+
+def test_finished_sessions_are_washed_out(app):
+    from app import ingest, routes
+    from app.models import StudySession
+    with mock.patch.object(ingest, "send_email"):
+        ingest.process_email("n1", "sona", "Study Sign-Up", SIGNUP)
+    client = app.test_client()
+    url = "/api/events?start=2018-06-01T00:00:00-07:00&end=2018-06-30"
+
+    # session runs 12:30-13:30
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 13, 29)):
+        before = client.get(url).get_json()[0]
+    with mock.patch.object(routes, "lab_now", return_value=datetime(2018, 6, 8, 13, 30)):
+        after = client.get(url).get_json()[0]
+    assert before["classNames"] == []
+    assert after["classNames"] == ["is-past"]
+    assert after["backgroundColor"] != before["backgroundColor"]
+    assert after["textColor"] == "#333333"
+
+    # no-shows keep their own look
+    StudySession.query.one().no_show = "excused"
+    from app.models import db
+    db.session.commit()
+    assert client.get(url).get_json()[0]["classNames"] == ["is-no-show"]
 
 
 def test_missing_columns_added_to_old_table(tmp_path, monkeypatch):

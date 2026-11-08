@@ -87,6 +87,19 @@ def no_show_after(s: StudySession) -> datetime:
     return s.start + timedelta(minutes=float(os.environ.get("NO_SHOW_GRACE_MINUTES", "5")))
 
 
+NO_SHOW_WINDOW = timedelta(hours=48)
+
+
+def session_end(s: StudySession) -> datetime:
+    """When a session ends (an hour after it starts if Sona gave no end time)."""
+    return s.end or s.start + timedelta(hours=1)
+
+
+def no_show_until(s: StudySession) -> datetime:
+    """The last moment a session can be marked as a no-show: 48 hours after it ends."""
+    return session_end(s) + NO_SHOW_WINDOW
+
+
 def mark_no_show(s: StudySession, kind: str) -> None:
     """Email the grad student about a no-show, then record it.
 

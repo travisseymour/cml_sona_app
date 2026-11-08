@@ -12,7 +12,8 @@ from functools import wraps
 from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
                    session, url_for)
 
-from .ingest import NO_SHOW_TYPES, lab_now, mark_no_show, no_show_after, process_email
+from .ingest import (NO_SHOW_TYPES, lab_now, mark_no_show, no_show_after, no_show_until,
+                     process_email, session_end)
 from .models import InboundEmail, StudySession, db
 from .ras import color_for, lighten, load_ras, readable_text
 from .resend_client import WebhookVerificationError, get_received_email, verify_webhook
@@ -128,10 +129,13 @@ def events():
             .filter(StudySession.start >= start, StudySession.start < end)
             .order_by(StudySession.start).all())
     out = []
+    lab_time = lab_now()
     for s in rows:
         primary = s.ra_list[0] if s.ra_list else None
         color = color_for(primary, ras)
-        if s.cancelled:
+        # Finished sessions that weren't cancelled or marked as no-shows
+        past = not s.cancelled and not s.no_show and session_end(s) <= lab_time
+        if s.cancelled or past:
             bg, text = lighten(color), "#333333"
         else:
             bg, text = color, readable_text(color)
@@ -140,12 +144,13 @@ def events():
             "id": s.id,
             "title": f"{ra_label} · {s.study}",
             "start": s.start.isoformat(),
-            "end": (s.end or s.start + timedelta(hours=1)).isoformat(),
+            "end": session_end(s).isoformat(),
             "backgroundColor": bg,
             "borderColor": color,
             "textColor": text,
             "classNames": (["is-cancelled"] if s.cancelled else [])
-                          + (["is-no-show"] if s.no_show else []),
+                          + (["is-no-show"] if s.no_show else [])
+                          + (["is-past"] if past else []),
             "extendedProps": {
                 "study": s.study,
                 "location": s.location,
@@ -155,6 +160,7 @@ def events():
                 "status": s.status,
                 "noShow": s.no_show,
                 "noShowAfter": no_show_after(s).isoformat(),
+                "noShowUntil": no_show_until(s).isoformat(),
             },
         })
     return jsonify(out)
@@ -174,6 +180,9 @@ def no_show(session_id: int):
         return jsonify(error="This session was cancelled."), 409
     if lab_now() < no_show_after(s):
         return jsonify(error="It's too early to mark this session as a no-show."), 409
+    if lab_now() > no_show_until(s):
+        return jsonify(error="This session is more than 48 hours old, so it can no longer be "
+                             "marked as a no-show."), 409
     if s.no_show:
         return jsonify(error=f"Already marked as an {s.no_show} no-show."), 409
     try:
